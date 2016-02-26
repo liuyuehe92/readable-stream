@@ -128,7 +128,12 @@ const headRegexp = /(^module.exports = \w+;?)/m
 
     , processNextTickImport = [
       headRegexp
-    , '$1\n\n/*<replacement>*/\nvar processNextTick = require(\'process-nextick-args\');\n/*</replacement>*/\n'
+    , `$1
+
+/*<replacement>*/
+  var processNextTick = require(\'process-nextick-args\');
+/*</replacement>*/
+`
     ]
 
     , processNextTickReplacement = [
@@ -140,7 +145,30 @@ const headRegexp = /(^module.exports = \w+;?)/m
           /^const internalUtil = require\('internal\/util'\);/m
         ,   '\n/*<replacement>*/\nconst internalUtil = {\n  deprecate: require(\'util-deprecate\')\n};\n'
           + '/*</replacement>*/\n'
+      ],
+      isNode10 = [
+        headRegexp
+      , `$1
+
+/*<replacement>*/
+  var isNode10 = !process.browser && ['v0.10' , 'v0.9.'].indexOf(process.version.slice(0, 5)) > -1;
+/*</replacement>*/
+`
       ]
+    , fixSyncWrite = [
+      /if \(sync\) {\n\s+processNextTick\(afterWrite, stream, state, finished, cb\);\n\s+}/
+      , `if (sync) {
+      /*<replacement>*/
+      if (isNode10) {
+        setTimeout(afterWrite, 0, stream, state, finished, cb);
+      } else {
+        processNextTick(afterWrite, stream, state, finished, cb);
+      }
+      /*</replacement>*/
+    }
+
+      `
+    ]
 
 module.exports['_stream_duplex.js'] = [
     requireReplacement
@@ -211,5 +239,7 @@ module.exports['_stream_writable.js'] = [
   , processNextTickImport
   , processNextTickReplacement
   , internalUtilReplacement
+  , isNode10
+  , fixSyncWrite
 
 ]
